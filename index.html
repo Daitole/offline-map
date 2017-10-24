@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+   <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta charset="UTF-8" name="viewport" content="initial-scale=1.0, user-scalable=yes" />
+    <title>地图</title>
+    <link rel="stylesheet" href="bootstrap-3.3.7-dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="xcConfirm-150317204828/css/xcConfirm.css">
+    <script type="text/javascript" src="mapfiles/mapapi.js"></script>
+<!--    <script src="jq/jquery-3.2.1.min.js"></script>-->
+<!--    <script src="jq/json2.js"></script>-->
+    <script src="jq/jquery1.11.min.js"></script>
+    <script src="xcConfirm-150317204828/js/xcConfirm.js"></script>
+    <script src="bootstrap-3.3.7-dist/js/bootstrap.min.js"></script>
+    <script src=jq/respond.js></script>
+    <script>
+        var map;
+        //加载本地地图函数
+        function LocalMapType() {}
+        var localMapType = new LocalMapType();
+        localMapType = {
+            tileSize: new google.maps.Size(256, 256),
+            maxZoom: 17, //地图显示最大级别
+            minZoom: 12, //地图显示最小级别
+            name: "本地地图",
+            alt: "显示本地地图数据",
+            getTile: function(coord, zoom, ownerDocument) {
+                var img = ownerDocument.createElement("img");
+                img.style.width = this.tileSize.width + "px";
+                img.style.height = this.tileSize.height + "px";
+                mapPicDir = "D:/map/googlemaps/satellite/";
+                strURL = mapPicDir + zoom + "/" + (coord.x) + "/" + (coord.y) + ".jpg";
+                img.src = strURL;
+                return img;
+            }
+        }
+        var localMapType2 = new LocalMapType();
+        localMapType2 = {
+            tileSize: new google.maps.Size(256, 256),
+            maxZoom: 17, //地图显示最大级别
+            minZoom: 12, //地图显示最小级别
+            name: "本地地图",
+            alt: "显示本地地图数据",
+            getTile: function(coord, zoom, ownerDocument) {
+                var img = ownerDocument.createElement("img");
+                img.style.width = this.tileSize.width + "px";
+                img.style.height = this.tileSize.height + "px";
+                mapPicDir = "D:/map/googlemaps/overlay/";
+                strURL = mapPicDir + zoom + "/" + (coord.x) + "/" + (coord.y) + ".png";
+                img.src = strURL;
+                return img;
+            }
+        }
+
+        //定义中心点
+        var myLatlng = new google.maps.LatLng(29.414254919622404, 105.93661308288574);
+        //定义marker组
+        var markers = new Array();
+
+        //两种图标
+        var iconUrl = "images/spotlight-poi.png"; //卡点  固定type=1 临时type=2
+        var iconUrl2 = "images/spotlight-poi2.png"; //人员到位 
+        //创建备注信息
+        function addTaps(k) {
+            //var k = new  Date().getTime();
+            var infowindow = new google.maps.InfoWindow({
+                maxWidth: 5000,
+                maxHeight: 5000,
+                id: k,
+                content: '名称：<span id=edit-' + k + '>无</span><br>备注：<span id="edit-tip-' + k + '">无</span><br>到达时间：<span id="edit-arrive-' + k + '">无</span><br>离开时间：<span id="edit-leaveTime-' + k + '">无</span>',
+                name: "卡点" + k,
+                arriveTime: "",
+                leaveTime: ""
+            });
+            k++;
+            return infowindow;
+        }
+
+        function setArriveTime(id) {
+            var time = getNowFormatDate()
+            for (var i = 0; i < markers.length; i++) {
+                if (markers[i].info.id == id) {
+                    markers[i].info.arriveTime = time;
+                    markers[i].info.leaveTime = "";
+                    break;
+                }
+            }
+            $("#arriveBtn").attr("disabled", "disabled");
+            $("#leaveBtn").removeAttr("disabled");
+            $("#arriveTime").text(time);
+            $("#leaveTime").text("");
+        }
+
+        function setLeaveTime(id) {
+            var time = getNowFormatDate()
+            for (var i = 0; i < markers.length; i++) {
+                if (markers[i].info.id == id) {
+                    markers[i].info.leaveTime = time;
+                    break;
+                }
+            }
+            $("#leaveBtn").attr("disabled", "disabled");
+            $("#arriveBtn").removeAttr("disabled");
+            $("#leaveTime").text(time);
+        }
+
+        function getNowFormatDate() {
+            var date = new Date();
+            var seperator1 = "-";    
+            var seperator2 = ":";    
+            var month = date.getMonth() + 1;    
+            var strDate = date.getDate();    
+            if (month >= 1 && month <= 9) {        
+                month = "0" + month;    
+            }    
+            if (strDate >= 0 && strDate <= 9) {        
+                strDate = "0" + strDate;    
+            }    
+            var currentdate = date.getFullYear() + seperator1 + month + seperator1 + strDate             + " " + date.getHours() + seperator2 + date.getMinutes()             + seperator2 + date.getSeconds();    
+            return currentdate;
+        }
+
+        function loadMarker(x, y, content, name, type, markerId, infoId, arriveTime, leaveTime) {
+            var infowindow = addTaps(markerId);
+            var myLatLng = {
+                lat: x,
+                lng: y
+            };
+            var marker = new google.maps.Marker({
+                position: myLatLng,
+                map: map,
+                draggable: true,
+                animation: google.maps.Animation.DROP,
+                title: "固定卡点",
+                type: type,
+                info: infowindow,
+                id: markerId
+            });
+            if (arriveTime != "" && leaveTime == "") {
+                marker.setIcon(iconUrl2);
+            } else {
+                marker.setIcon(iconUrl);
+            }
+            if (type == 2) {
+                marker.setTitle("临时卡点");
+                marker.type = 2;
+            } else if (type == 1) {
+                marker.setTitle("固定卡点");
+                marker.type = 1;
+            } else {
+                window.wxc.xcConfirm("错误卡点类型", window.wxc.xcConfirm.typeEnum.warning);
+            }
+            infowindow.setContent(content);
+            infowindow.name = name;
+            infowindow.arriveTime = arriveTime;
+            infowindow.leaveTime = leaveTime;
+            markers.push(marker);
+            clickMarker(marker);
+            //绑定鼠标移进事件
+            bindingMouseover(marker.info, map, marker);
+            bindingMouseout(marker.info, map, marker);
+            //卡点双击事件
+            bindingClick(marker);
+            return markers[markers.length - 1];
+        }
+
+        //添加卡点 并注册 事件
+        function addMarker(location) {
+            var markerId = new  Date().getTime();
+            var infowindow = addTaps(markerId);
+            var marker = new google.maps.Marker({
+                position: location,
+                map: map,
+                draggable: true,
+                animation: google.maps.Animation.DROP,
+                title: "临时卡点",
+                type: 2,
+                info: infowindow,
+                id: markerId,
+                icon: iconUrl
+            });
+            markers.push(marker);
+            //鼠标单击事件
+            clickMarker(marker);
+            //绑定鼠标移进事件
+            bindingMouseover(marker.info, map, marker);
+            bindingMouseout(marker.info, map, marker);
+            //卡点双击事件
+            bindingClick(marker);
+            return markers[markers.length - 1];
+        }
+
+        //单击图标
+        function clickMarker(marker) {
+            google.maps.event.addListener(marker, 'click', function(event) {
+                edit(marker.info.id);
+            });
+        }
+
+        //为infowindow绑定 单独的hover事件
+        function bindingMouseover(infowindow, map, marker) {
+            google.maps.event.addListener(marker,  'mouseover',  function (event) {
+                infowindow.open(map, marker);
+            });
+        }
+
+        //鼠标移进 事件
+        function bindingMouseout(infowindow, map, marker) {
+            google.maps.event.addListener(marker, 'mouseout', function(event) {
+                infowindow.close(map, marker);
+            });
+        }
+
+        //为marker绑定 单独的双击事件
+        function bindingClick(marker) {
+            google.maps.event.addListener(marker,  'dblclick',  function (event) {
+                marker.setMap(null);
+                removeByValue(markers, marker.id);
+            });
+        }
+
+        //删除数组元素
+        function removeByValue(arr, val) {  
+            for (var i = 0; i < arr.length; i++) {    
+                if (arr[i].id == val) {      
+                    arr.splice(i, 1);    
+                    break;    
+                }
+            }
+        }
+
+        //保存卡点
+        function onlySaveMarkers() {
+            var url = "d:/map/mapsdata/basemarker/markers.txt";
+            saveData(url, getValue);
+        }
+
+        //保存方案
+        function savePlans() {
+            var fileName = $("#saveFileName").val();
+            var url = "d:/map/mapsdata/plans/" + fileName + ".txt";
+            saveData(url, getAllValue);
+        }
+
+        function saveData(url, fun) {
+            try {
+                var fso = new ActiveXObject("Scripting.FileSystemObject");
+                //            var f = fso.CreateTextFile('d:/markers.txt', true);
+                var f = fso.CreateTextFile(url, true);
+                var data = fun();
+                var arr = new Array();
+                for (var i = 0; i < data.length; i++) {
+                    arr[i] = new Array(
+                        data[i].position,
+                        data[i].title, data[i].info.content,
+                        data[i].info.name,
+                        data[i].type,
+                        data[i].id,
+                        data[i].info.id,
+                        data[i].info.arriveTime,
+                        data[i].info.leaveTime
+                    );
+                }
+                // arr.push(json1); 
+                // var b=eval('('+arr+')'); 
+                // var b = eval(data);
+                var b = JSON.stringify(arr);
+                f.WriteLine(b);
+                f.Close();
+                $('#exampleModal').modal('hide');
+                window.wxc.xcConfirm("保存成功", window.wxc.xcConfirm.typeEnum.success);
+                resetBtn();
+            } catch (e) {
+                window.wxc.xcConfirm("请使用IE内核浏览器", window.wxc.xcConfirm.typeEnum.warning);
+            }
+        }
+
+        function getyyyyMMdd() {
+            var d = new Date();
+            var curr_date = d.getDate();
+            var curr_month = d.getMonth() + 1;
+            var curr_year = d.getFullYear();
+            String(curr_month).length < 2 ? (curr_month = "0" + curr_month) : curr_month;
+            String(curr_date).length < 2 ? (curr_date = "0" + curr_date) : curr_date;
+            var yyyyMMdd = curr_year + "" + curr_month + "" + curr_date;
+            return yyyyMMdd;
+        }
+
+        function loadData(url, b) {
+            if (!b) {
+                url = "d:/map/mapsdata/basemarker/markers.txt";
+            } else {
+                url = "d:/map/mapsdata/plans/" + url;
+            }
+            for (var i = 0; i < markers.length; i++) {
+                markers[i].setMap(null);
+            }
+            markers = markers.splice(0, markers.length);
+            var fso = new ActiveXObject("Scripting.FileSystemObject"); 
+            // 打开文件 
+
+            var ts = fso.OpenTextFile(url, 1); 
+            //            ts = fso.OpenTextFile(url, 1); 
+            // 读取文件一行内容到字符串 
+            var s;
+            try {
+                s = ts.ReadAll(); 
+                var obj = eval('(' + s + ')');
+                for (var i = 0; i < obj.length; i++) {
+                    loadMarker(obj[i][0].d, obj[i][0].e, obj[i][2], obj[i][3], obj[i][4], obj[i][5], obj[i][6], obj[i][7], obj[i][8]);
+                }
+                // 关闭文件 
+            } catch (e) {
+                window.wxc.xcConfirm("初始卡点为空", window.wxc.xcConfirm.typeEnum.success);
+            } finally {
+                resetBtn();
+                $('#exampleModal2').modal('hide');
+                ts.Close();
+            }
+        }
+
+        //初始化地图
+        function initialize() {
+            //地图属性
+            var mapOptions = {
+                zoom: 15,
+                center: myLatlng,
+                mapTypeControlOptions: {
+                    mapTypeIds: [
+                            // google.maps.MapTypeId.SATELLITE, //显示卫星图像的主要街道透明层
+                            //google.maps.MapTypeId.HYBRID
+                            //'localMap',
+                            //'localMap' 
+                        ] //定义地图类型
+                },
+                panControl: true,
+                zoomControl: true,
+                mapTypeControl: true,
+                scaleControl: true,
+                streetViewControl: true,
+                overviewMapControl: true,
+                rotateControl: true
+            }
+
+            //初始化地图
+            map = new google.maps.Map(document.getElementById('map_canvas'), mapOptions);
+            map.mapTypes.set('localMap', localMapType); //绑定本地地图类型  导入本地卫星
+            map.mapTypes.set('localMap2', localMapType2); //绑定本地地图类型  导入本地卡点
+            map.overlayMapTypes.push(localMapType2);  // 注意：由于googole未开放混合图接口，所以此处将街道地图覆盖在卫星地图之上达到混合图效果。  
+            map.setMapTypeId('localMap'); //指定显示本地地图
+            map.setOptions({
+                streetViewControl: false,
+                draggable: true
+            });
+
+            //卡点模块
+            google.maps.event.addListener(map, 'click', function(event) {
+                addMarker(event.latLng);
+            });
+            loadData("d:/map/mapsdata/markers.txt");
+            resetBtn();
+        }
+
+        function edit(k) {
+            $("#save").attr("onclick", "saveEdit('" + k + "')");
+            $("#arriveBtn").attr("onclick", "setArriveTime('" + k + "')");
+            $("#leaveBtn").attr("onclick", "setLeaveTime('" + k + "')");
+            if (!$("#collapseExample").hasClass("in")) {
+                $("#collapseExample").addClass("in");
+            }
+            var oldname = $("#edit-" + k).text();
+            var oldtip = $("#edit-tip-" + k).text();
+            var arriveTime = $("#edit-arriveTime-" + k).text();
+            var leaveTime = $("#edit-leaveTime-" + k).text();
+            $("#editName").val(oldname);
+            $("#editTips").text(oldtip);
+            $("#arriveTime").text(arriveTime);
+            $("#leaveTime").text(leaveTime);
+            for (var i = 0; i < markers.length; i++) {
+                if (markers[i].id == k) {
+                    if (markers[i].info.arriveTime === "" && markers[i].info.leaveTime === "" || markers[i].info.arriveTime != "" && markers[i].info.leaveTime != "") {
+                        //                        $("#leaveBtn").attr("disabled", "disabled");
+                        $("#arriveBtn").removeAttr("disabled");
+                    } else if (markers[i].info.leaveTime === "") {
+                        //                        $("#arriveBtn").attr("disabled", "disabled");
+                        $("#leaveBtn").removeAttr("disabled");
+                    } else if (markers[i].info.arriveTime === "") {
+                        //                        $("#leaveBtn").attr("disabled", "disabled");
+                        $("#arriveBtn").removeAttr("disabled");
+                    }
+                    if (markers[i].type == 2) {
+                        $("#radio1").removeClass("active");
+                        $("#radio2").addClass("active");
+                        $("input[name='options'][value='1']").removeAttr("checked");
+                        $("input[name='options'][value='2']").prop("checked", "checked");
+                    } else if (markers[i].type == 1) {
+                        $("#radio2").removeClass("active");
+                        $("#radio1").addClass("active"); 
+                        $("input[name='options'][value='2']").removeAttr("checked");
+                        $("input[name='options'][value='1']").prop("checked", "checked");
+                    } else {
+                        window.wxc.xcConfirm("错误marker类型", window.wxc.xcConfirm.typeEnum.warning);
+                    }
+                    $("#savePlanBtn").removeAttr("disabled");
+                    $("#savePotBtn").removeAttr("disabled");
+                    $("#save").removeAttr("disabled");
+                    break;
+                }
+            }
+        }
+
+        function resetBtn() {
+            $("#arriveBtn").attr("disabled", "disabled");
+            $("#leaveBtn").attr("disabled", "disabled");
+            //            $("#savePlanBtn").attr("disabled", "disabled");
+            //            $("#savePotBtn").attr("disabled", "disabled");
+            $("#save").attr("disabled", "disabled");
+        }
+
+        function saveEdit(k) {
+            var str = $("#editTips").val();
+            var name = $("#editName").val();
+            var tmp, arriveTime, leaveTime;
+            var v = $("input[name='options']:checked").val();
+            for (var i = 0; i < markers.length; i++) {
+                if (markers[i].id == k) {
+                    arriveTime = markers[i].info.arriveTime;
+                    leaveTime = markers[i].info.leaveTime;
+                    if (arriveTime != "" && leaveTime == "") {
+                        markers[i].setIcon(iconUrl2);
+                    }else{
+                        markers[i].setIcon(iconUrl);
+                    }
+                    markers[i].info.setContent('名称：<span id="edit-' + k + '">' + name + '</span><br>备注：<span id="edit-tip-' + k + '">' + str + '</span><br>到达时间：<span id="edit-arriveTime-' + k + '">' + arriveTime + '</span><br>离开时间：<span id="edit-leaveTime-' + k + '">' + leaveTime + '</span>'); //<button onclick="edit(' + k + ')">编辑</button>
+                    markers[i].type = v;
+                    tmp = markers[i];
+                    break;
+                }
+            }
+            $("#arriveTime").text(arriveTime);
+            $("#leaveTime").text(leaveTime);
+            window.wxc.xcConfirm("保存成功", window.wxc.xcConfirm.typeEnum.success);
+            resetBtn();
+        }
+
+        function getValue() {
+            var data = new Array();
+            for (var i = 0; i < markers.length; i++) {
+                if (markers[i].type == 1) {
+                    data.push(markers[i]);
+                }
+            }
+            return data;
+        }
+
+        function getAllValue() {
+            var data = new Array();
+            for (var i = 0; i < markers.length; i++) {
+                data.push(markers[i]);
+            }
+            return data;
+        }
+
+        function readFolder() {
+            var filePath = "d:/map/mapsdata/plans/";
+            var fso = new ActiveXObject("Scripting.FileSystemObject");  //加载控件
+            var f = fso.GetFolder(filePath);
+            var underFiles = new Enumerator(f.files); //文件夹下文件
+            $("#fileListBox").text("");
+            for (; !underFiles.atEnd(); underFiles.moveNext()) {
+                var url = underFiles.item().name;
+                $("#fileListBox").append("<button class='list-group-item' onclick=loadData('" + url + "',1)>" + url + "</button>");
+            }
+        }
+
+        //k 为infoid； infoid==markerid
+    </script>
+</head>
+
+<body onload="initialize()">
+    <div id="map_canvas" style="left:0;top:0;width:100%;height:100%;position:absolute;">
+    </div>
+    <!--    右侧菜单-->
+    <div style="position:absolute;right:0px;top:0px;width:300px;">
+        <a class="btn btn-primary" style="width: inherit;" role="button" data-toggle="collapse" href="#collapseExample" aria-expanded="true" aria-controls="collapseExample">
+  编辑栏
+</a>
+        <div class="collapse in" id="collapseExample" aria-expanded="true">
+            <div class="well">
+                <!--
+                <div class="btn-group btn-group-justified" role="group" aria-label="Justified button group">
+                    <a class="btn btn-default" role="button" href="#">固定卡点</a>
+                    <a class="btn btn-default" role="button" href="#">临时卡点</a>
+                    <a class="btn btn-default" role="button" href="#">显示全部</a>
+                </div>
+-->
+                <div class="panel panel-default">
+                    <div class="panel-heading">
+                        <h3 class="panel-title">卡点修改</h3>
+                    </div>
+                    <div class="panel-body">
+                        <!--
+                        <div class="form-group">
+                            <span class="input-group-addon" id="basic-addon1">卡点名称:</span>
+                            <input type="text" id="editName" class="form-control" aria-describedby="basic-addon1" placeholder="卡点名称">
+                        </div>
+-->
+                        <div class="input-group">
+                            <span class="input-group-addon" id="basic-addon1">名称</span>
+                            <input type="text" id="editName" class="form-control" placeholder="卡点名称" aria-describedby="basic-addon1">
+                        </div>
+                        <hr style="margin-top: 10px;margin-bottom:10px;">
+                        <label>到达时间:&nbsp;</label><span id="arriveTime"></span>
+                        <p></p>
+                        <label>离开时间:&nbsp;</label><span id="leaveTime"></span>
+                        <hr style="margin-top: 10px;margin-bottom:10px;">
+                        <label>卡点备注:</label>
+                        <textarea id="editTips" class="form-control" rows="2"></textarea>
+                        <hr style="margin-top: 10px;margin-bottom:10px;">
+                        <label>人员情况：</label>
+                        <div class="btn-group btn-group-justified" role="group" aria-label="Justified button group">
+                            <a class="btn btn-default" id="arriveBtn" role="button" href="#">到达</a>
+                            <a class="btn btn-default" disabled="disabled" id="leaveBtn" role="button" href="#">离开</a>
+                        </div>
+                        <hr style="margin-top: 10px;margin-bottom:10px;">
+                        <label>卡点类型：</label>
+                        <div class="btn-group btn-group-justified" data-toggle="buttons">
+                            <label class="btn btn-primary" id="radio2">
+                            <input type="radio" name="options" value="2">临时卡点
+                            </label>
+                            <label class="btn btn-primary" id="radio1">
+                            <input type="radio" name="options" value="1">固定卡点
+                            </label>
+                        </div>
+                        <hr style="margin-top: 10px;margin-bottom:10px;">
+                        <button class="btn btn-primary" id="save">保存修改</button>
+                    </div>
+                </div>
+                <button class="btn btn-danger" id="savePotBtn" onclick="onlySaveMarkers()">保存预案</button>
+                <button class="btn btn-warning" data-toggle="modal" data-target="#exampleModal" id="savePlanBtn">保存方案</button>
+                <button class="btn btn-warning" data-toggle="modal" data-target="#exampleModal2" onclick="readFolder()">载入方案</button>
+            </div>
+        </div>
+    </div>
+    <div class="modal fade" id="exampleModal" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel">
+        <div class="modal-dialog modal-sm" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title" id="exampleModalLabel">保存当前方案</h4>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="recipient-name" class="control-label">文件名:</label>
+                        <input type="text" class="form-control" id="saveFileName">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-default" data-dismiss="modal">取消</button>
+                    <button type="button" onclick="savePlans()" class="btn btn-primary">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="exampleModal2" tabindex="-1" role="dialog" aria-labelledby="exampleModalLabel">
+        <div class="modal-dialog modal-sm" role="document">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                    <h4 class="modal-title" id="exampleModalLabel">方案列表</h4>
+                </div>
+                <div class="modal-body">
+                    <div class="list-group" id="fileListBox">
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+
+</html>
